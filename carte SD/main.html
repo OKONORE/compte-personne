@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Salles du CERI</title>
+
+<script>
+    // Fonction pour obtenir le contenu du CSV
+    async function readCSVFromURL() {
+        const url = 'http://192.168.4.1/data.csv';
+
+        try {
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error('Failed to fetch CSV file');
+            }
+
+            const csvData = await response.text();
+            return csvData;
+        } catch (error) {
+            console.error('Error fetching CSV file:', error);
+            return null;
+        }
+    }
+    //Fonction pour obtenir l'occupation ponctuelle d'une salle
+    function occupation(id_Salles, csvData) {
+        var lines = csvData.split('\n');
+        var countEntree = 0;
+        var countSortie = 0;
+
+        lines.forEach(function(line) {
+            var columns = line.split(';');
+            if (columns.length === 3) {
+                var id = columns[0];
+                var valeur = columns[1];
+                var timestamp = columns[2];
+
+                if (id === id_Salles) {
+                    if (valeur === '1') {
+                        countEntree++;
+                    } else if (valeur === '0') {
+                        countSortie++;
+                    }
+                }
+            }
+        });
+
+        return countEntree - countSortie;
+    }
+
+    // Fonction pour calculer l'occupation globale
+    function occupation_globale(csvData) {
+        var sallesOccupation = [];
+        var lines = csvData.split('\n');
+
+        lines.forEach(function(line) {
+            var columns = line.split(';');
+            if (columns.length === 3) {
+                var id_Salles = columns[0];
+                if (!sallesOccupation.includes(id_Salles)) {
+                    sallesOccupation.push(id_Salles);
+                }
+            }
+        });
+
+        var totalOccupation = 0;
+        sallesOccupation.forEach(function(id_Salles) {
+            totalOccupation += occupation(id_Salles, csvData);
+        });
+
+        return totalOccupation;
+    }
+
+    // Fonction pour calculer la moyenne
+    function moyenne(csvData) {
+        var sallesOccupation = [];
+        var lines = csvData.split('\n');
+
+        lines.forEach(function(line) {
+            var columns = line.split(';');
+            if (columns.length === 3) {
+                var id_Salles = columns[0];
+                if (!sallesOccupation.includes(id_Salles)) {
+                    sallesOccupation.push(id_Salles);
+                }
+            }
+        });
+
+        var totalOccupation = 0;
+        sallesOccupation.forEach(function(id_Salles) {
+            totalOccupation += occupation(id_Salles, csvData);
+        });
+
+        return totalOccupation / sallesOccupation.length;
+    }
+
+    function parseTimestamp(timestamp) {
+        try {
+            const dateParts = timestamp.split('-');
+            return new Date(dateParts[0], dateParts[1] - 1, dateParts[2], dateParts[3], dateParts[4], dateParts[5]);
+        } catch {
+            console.error('failed parse timestamp', timestamp, error)
+        }
+    }
+
+    // Fonction pour calculer l'occupation d'une salle pour les 24 dernières heures
+    function occupation_last_24_hours(id_Salles, csvData) {
+        try {
+            console.log("occupation par id last 24");
+            const currentTime = new Date();
+            const occupations = [];
+            let currentOccupation = 0;
+
+            const lines = csvData.split('\n');
+            lines.forEach(function(line) {
+                const columns = line.split(';');
+                if (columns.length === 3) {
+                    const id = columns[0];
+                    const valeur = columns[1];
+                    const timestamp = columns[2];
+                    console.log(`Processing line: ID=${id}, Value=${valeur}, Timestamp=${timestamp}`);
+                    
+                    const timestampDate = parseTimestamp(timestamp);
+                    const timestampDay = timestampDate.getDate();
+                    const hour = timestampDate.getHours();
+
+                    if (id === id_Salles && timestampDate.getTime() > currentTime.getTime() - 24*60*60*1000) {
+                        console.log(`Timestamp is within last 24 hours: ${timestampDate}`);
+                        if (valeur === '1') {
+                            currentOccupation++;
+                        } else if (valeur === '0') {
+                            currentOccupation--;
+                        }
+                        occupations.push(currentOccupation);
+                    }
+                    
+                }
+            });
+            console.log('occupations array', occupations);
+
+            return occupations;
+        } catch (error) {
+            console.error('Error :', error);
+        }
+    }
+
+
+    // Fonction pour calculer l'occupation globale dans les 24 dernières heures
+    function total_occupation_last_24_hours(csvData) {
+        try {
+            console.log("Total occupation");
+            const currentTime = new Date();
+            const totalOccupations = [];
+            let currentOccupation = 0;
+
+            const lines = csvData.split('\n');
+            lines.forEach(function(line) {
+                const columns = line.split(';');
+                if (columns.length === 3) {
+                    const valeur = columns[1];
+                    const timestamp = columns[2];
+
+                    console.log(`Processing line: Value=${valeur}, Timestamp=${timestamp}`);
+                    
+                    const timestampDate = parseTimestamp(timestamp);
+                    const timestampDay = timestampDate.getDate();
+                    const hour = timestampDate.getHours();
+
+                    if (timestampDate.getTime() > currentTime.getTime() - 24*60*60*1000) {
+                        console.log(`Timestamp is within last 24 hours: ${timestampDate}`);
+                        if (valeur === '1') {
+                            currentOccupation++;
+                        } else if (valeur === '0') {
+                            currentOccupation--;
+                        }
+                        totalOccupations.push(currentOccupation);
+                    }
+                }
+            });
+            console.log('24hTot', totalOccupations);
+
+            return totalOccupations;
+        } catch (error) {
+            console.error('Error :', error);
+        }
+    }
+
+    //Fonction pour obtenir un tableau avec les id des salles
+    async function getUniqueIDsFromCSV(csvData) {
+        const lines = csvData.split('\n');
+        const uniqueIDs = new Set();
+
+        lines.forEach(line => {
+            const columns = line.split(';');
+            if (columns.length >= 1) {
+                const id = columns[0];
+                uniqueIDs.add(id);
+            }
+        });
+
+        return Array.from(uniqueIDs);
+    }
+
+    function createGraph(datas) {
+        try {
+          console.log("creating graph");
+        if (datas.length === 0) {
+            console.error('No data to create graph');
+            datas = [{value: 0,}, {value: 0,}];
+        }
+        //mise en place manuelle d'un graphique car impossibilité de libs
+        const minimum = datas.reduce((acc, loc) =>
+          acc.value < loc.value ? acc : loc
+        );
+
+        const maximum = datas.reduce((acc, loc) =>
+          acc.value > loc.value ? acc : loc
+        );
+
+        // on recup le canvas
+        const c = document.createElement("canvas");
+        c.width = 500;
+        c.height = 300; //enlevable
+        
+        // graphic en 2d et on trace en fonction du tableau de datas
+        const ctx = c.getContext("2d");
+        ctx.beginPath();
+        let lasty, lastx; //enlevable
+        datas.forEach((data, i) => {
+          // lasty = c.height * (1-data.value/maximum.value);
+          lasty = c.height - Math.floor((data.value / maximum.value) * (c.height))-11;
+          if (data.value === 0 || lasty > c.height - 11) {lasty = c.height - 11;}
+          if (lasty<=0) {lasty=1;}
+          lastx = Math.floor(c.width / (datas.length > 1 ? datas.length : 2)) * i + 15; // on prépare le cas où on n'a q'une valeur
+          if (i === 0) ctx.moveTo(lastx, lasty);
+          ctx.lineTo(lastx, lasty);
+        });
+        ctx.stroke();
+
+        // axe abcisse et ordonnee
+        ctx.beginPath();
+        ctx.moveTo(15, 0);
+        ctx.lineTo(15, c.height);
+        ctx.moveTo(15, c.height-10);
+        ctx.lineTo(c.width, c.height-10);
+        ctx.stroke();
+
+        // on decide de comment on affiche les valeurs indicative sur la gauche (par 10, 100, etc)
+        let increment;
+        if (maximum.value <= 10) increment = 1;
+        else if (maximum.value <= 50) increment = 5;
+        else if (maximum.value <= 100) increment = 10;
+        else increment = 50;
+
+        // axe Y
+        const yTickSpacing = c.height / (maximum.value / increment);
+        for (let i = 0; i <= maximum.value; i+= increment) {
+          const y = c.height - (i * yTickSpacing / increment);
+          ctx.fillText(i, 0, y);
+        }
+
+        // axe X
+        const xTickSpacing = c.width / (datas.length > 1 ? datas.length : 2);
+
+        // axes rouges qui pointent la dernière valeur sur les axes X et Y
+        // axes rouges qui pointent la dernière valeur sur les axes X et Y
+        const lastValue = datas[datas.length - 1].value;
+
+        const x = (datas.length > 1 ? (datas.length - 1) : 1) * xTickSpacing;
+        let y = c.height - (lastValue * yTickSpacing / increment);
+
+        if (lastValue === 0) {y = c.height - 11;}
+
+        ctx.beginPath();
+        ctx.strokeStyle = 'red';
+        ctx.moveTo(x+15, y-11);
+        ctx.lineTo(15, y-11);
+        ctx.stroke();
+        console.log('Red line Y:', y);
+        console.log('Red line X:', x);
+
+        return c;
+        } catch (error) {
+          console.error('Error:', error);
+        }
+    }
+
+    async function createCard(id, csvData){
+        console.log('createCard data:', id, csvData);
+
+        try {
+            const occupationValue = id !== "general" ? occupation(id, csvData) : occupation_globale(csvData);
+            const graphData = id !== "general" ? occupation_last_24_hours(id, csvData) : total_occupation_last_24_hours(csvData);
+            console.log('Graph Data for', id, ':', graphData);
+            const graphDataObjects = graphData.map(value => ({ value })); // array de nombres vers objects avec des values
+
+            const div = document.createElement("div");
+            const divG = document.createElement("div");
+            const divX = document.createElement("div");
+            const divY = document.createElement("div");
+            const h3 = document.createElement("h3");
+            const pr = document.createElement("p");
+            const p = document.createElement("p");
+
+            const canvas = createGraph(graphDataObjects);
+
+            if (id !== "general") {
+                h3.innerHTML = "Salle \"" + id + "\"";
+                p.innerHTML = "Occupation : " + occupationValue + " personnes";
+            } else {
+                p.innerHTML = "<br>Occupation globale : " + occupationValue + "<br><br>Moyenne de toutes les salles : " + moyenne(csvData);
+            }
+
+            pr.innerHTML = "Sur les 24 derni&egrave;res heures, le présent est &aacute; droite";
+            pr.style.fontStyle = "italic";
+            pr.style.fontWeight = "0.8em";
+
+            //on append
+            div.append(h3);
+            div.append(pr);
+            divG.append(divX);
+            divG.append(canvas);
+            divG.append(divY);
+            div.append(divG);
+            div.append(p);
+
+            //attributs (apparence et autres)
+            divG.setAttribute('style', 'margin: 10px; background-color: #679ca6; border-radius: 10px; display: block;');
+            divX.setAttribute('style', 'width: 50px; transform: translate(10%, 0%); display: block; text-shadow: 0 0 5px #090979;');
+            divY.setAttribute('style', 'transform: translate(2%, 0%); text-shadow: 0 0 5px #090979;');
+
+            divY.innerHTML = "Temps";
+            divX.innerHTML = "Nombre";
+            return div;
+        } catch (error) {
+            console.error('Card err ', error);
+            return null;
+        }
+    }
+
+    window.onload = async () => {
+        try {
+            const csvData = await readCSVFromURL();
+            const idsalles = await getUniqueIDsFromCSV(csvData);
+            // d'abord on cree les stats generales
+            const genCard = await createCard("general", csvData);
+
+            // on recup les elements
+            const general = document.getElementById("general");
+
+            general.append(genCard);
+
+            // salles individuelles
+            const salles = document.getElementById("stat-salles");
+
+            for (const idsalle of idsalles) {
+                if (idsalle) {
+                    const card = await createCard(idsalle, csvData);
+                    card.setAttribute('style', 'margin-top: 80px;');
+                    salles.append(card);
+                }
+            }
+        } catch (error) {
+            console.error('Error : ', error);
+        }
+    };
+    </script>
+  </head>
+  <style>
+    body {
+      background: rgb(2,0,36);
+      background: linear-gradient(90deg, rgba(2,0,36,1) 0%, rgba(9,9,121,1) 50%, rgba(3,50,60,1) 100%);
+      color: white;
+      font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    #general {
+      display: flex;
+      justify-content: center;
+      flex-direction: row;
+    }
+    #stat-salles {
+      display: flex;
+      justify-content: center;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    #stat-salles div {
+      width: 80%;
+      display: flex;
+      justify-content: center;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .card {
+      background: transparent;
+      border: 2px solid rgba(255, 255, 255, .2);
+      backdrop-filter: blur(100px);
+      box-shadow: 0 0 10px rgba(0, 0, 0, .2);
+      border-radius: 10px;
+      padding: 20px;
+      margin: 20px;
+    }
+
+    .card h1, .card h2, .card h3, .card h4 {
+      text-align: center;
+      font-weight: bolder;
+    }
+
+    canvas {
+      width: 99%;
+      height: auto;
+    }
+
+    .x-label, .y-label {
+      display: block;
+    }
+
+    @media screen and (max-width: 720px) {
+      #general {
+        flex-direction: column;
+      }
+
+      .card {
+        padding: 1vh;
+      }
+      .card p {
+        font-size: 0.8em;
+      }
+      #x-label, #y-label {font-size: 0.7em;}
+
+      #stat-salles div {
+        width: 97%;
+      }
+    }
+  </style>
+  <body>
+    <div id="top" class="card">
+      <div style="display: flex; align-items: center; justify-content: center;">
+      <h1>Salles du CERI</h1>
+      </div>
+      <h4>Voyez ici la disponibilit&eacute; des salles du CERI</h4>
+      <div>
+        <button type="button" class="redirect-button" style="background-color: darkblue; display: inline-block; border: none; padding: 10px 20px; text-align: center; margin: 4px 2px; cursor: pointer; transition-duration: 0.4s;">
+            <a href="http://192.168.4.1/reset.html" style="color: white;text-decoration: none; font-size: 16px;">R&eacute;initialiser</a>
+        </button>
+      </div>
+    </div>
+    <div id="stats" style="margin-top: 50px; display: flex; flex-direction: column;">
+      <div id="general" class="card" style="justify-content: center; align-items: center; display: flex;">
+        <div style="margin: 10px; width: 100%; max-width: fit-content;">
+          <h2 style="margin-right: 10px;">Statistiques g&eacute;n&eacute;rales : </h2>
+        </div>
+      </div>
+      <div class="card">
+        <div>
+          <h2>Statistiques par salle</h2>
+        </div>
+        <div id="stat-salles">
+
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

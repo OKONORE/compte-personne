@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <?xml version="1.0" encoding="utf-8"?>
+  <title>Synchro de l'heure</title>
+  <script>
+    function sendLocalTime() {
+      var now = new Date();
+      var year = now.getFullYear();
+      var month = now.getMonth() + 1;
+      var day = now.getDate();
+      var hours = now.getHours();
+      var minutes = now.getMinutes();
+      var seconds = now.getSeconds();
+
+      var heure = year + "-" + month + "-" + day + " " + hours + ":" + minutes + ":" + seconds;
+      var xhr = new XMLHttpRequest();
+      xhr.open("POST", "/envoi", true);
+      xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState == 4 && xhr.status == 200) {
+          window.location.href = "./main.html";
+        }
+      };
+      xhr.send("local_time=" + heure);
+    }
+  </script>
+</head>
+<body onload="sendLocalTime()">
+  <h1>Synchronisation de l'heure</h1>
+  <p>L'heure locale est en cours d'envoi pour synchronisation...</p>
+</body>
+</html>
